@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roleta de Robux</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #121212;
+            font-family: 'Press Start 2P', cursive;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 90%;
+            max-width: 800px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #ffdb58;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 8px rgba(255, 219, 88, 0.8);
+            animation: fadeIn 2s ease, pulse 2s infinite alternate;
+            text-align: center;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+       @keyframes pulse {
+          from { transform: scale(1); }
+          to { transform: scale(1.04); }
+        }
+
+        #roleta {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            border-radius: 50%;
+            border: 4px solid #ffdb58;
+            margin-bottom: 1rem;
+            position: relative;
+            box-shadow: 0 0 15px rgba(255, 219, 88, 0.5);
+            transition: transform 4s ease-out;
+            background-color: #1a1a1a;
+        }
+
+        #seta {
+            position: absolute;
+            top: 50%;
+            left: calc(50% + min(250px, 50vw) + 5px);
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid #ffdb58;
+            pointer-events: none;
+        }
+
+        #girar {
+            padding: 0.8rem 1.5rem;
+            font-size: 1rem;
+            color: #121212;
+            background-color: #ffdb58;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-family: 'Press Start 2P', cursive;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-shadow: 1px 1px 0px #e6b800;
+        }
+
+        #girar:hover {
+            background-color: #e6b800;
+        }
+
+        #resultado {
+            font-size: 1.2rem;
+            color: #ffdb58;
+            margin-top: 1rem;
+            text-align: center;
+            min-height: 1.5em;
+            animation: fadeIn 1s ease;
+        }
+
+        #codigo {
+            font-size: 1rem;
+            color: #ffdb58;
+            margin-top: 1rem;
+            text-align: center;
+            background-color: #333;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            display: none;
+        }
+
+        #mensagem {
+            font-size: 0.8rem;
+            color: #fff;
+            margin-top: 0.5rem;
+            text-align: center;
+            display: none;
+        }
+
+         @media (max-width: 400px) {
+            h1 {
+                font-size: 1.75rem;
+            }
+            #roleta {
+                max-width: 90vw;
+            }
+            #seta {
+               left: calc(50% + 45vw + 5px);
+            }
+            #girar {
+                font-size: 0.8rem;
+                padding: 0.5rem 1rem;
+            }
+            #resultado {
+                font-size: 1rem;
+            }
+            #codigo {
+                font-size: 0.9rem;
+            }
+            #mensagem {
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gire a Roleta da Sorte!</h1>
+        <canvas id="roleta"></canvas>
+        <div id="seta"></div>
+        <button id="girar">GirAR!</button>
+        <div id="resultado"></div>
+        <div id="codigo"></div>
+        <div id="mensagem">Insira este código no site da Roblox para resgatar seus Robux!</div>
+    </div>
+    <script>
+        const canvas = document.getElementById('roleta');
+        const ctx = canvas.getContext('2d');
+        const girarBotao = document.getElementById('girar');
+        const resultadoDiv = document.getElementById('resultado');
+        const codigoDiv = document.getElementById('codigo');
+        const mensagemDiv = document.getElementById('mensagem');
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        let largura = Math.min(500, window.innerWidth * 0.8);
+        canvas.width = largura;
+        canvas.height = largura;
+        const centroX = canvas.width / 2;
+        const centroY = canvas.height / 2;
+        const raio = centroX;
+        let girando = false;
+        let anguloInicial = 0;
+        let tempoLimite = 10;
+        let intervaloId;
+        let velocidadeInicial = 0;
+
+        const valores = [50, 100, 150, 200];
+        const cores = gerarCoresGradientes(valores.length);
+
+        function gerarCoresGradientes(numCores) {
+            const cores = [];
+            for (let i = 0; i < numCores; i++) {
+                const startColor = [
+                    100 + Math.floor(Math.random() * 156),
+                    100 + Math.floor(Math.random() * 156),
+                    Math.floor(Math.random() * 100)
+                ];
+                const endColor = [
+                    255,
+                    255 - Math.floor(Math.random() * 100),
+                    Math.floor(Math.random() * 100)
+                ];
+
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                gradient.addColorStop(0, `rgb(${startColor[0]}, ${startColor[1]}, ${startColor[2]})`);
+                gradient.addColorStop(1, `rgb(${endColor[0]}, ${endColor[1]}, ${endColor[2]})`);
+                cores.push(gradient);
+            }
+            return cores;
+        }
+
+        function desenharRoleta() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const numValores = valores.length;
+            const anguloPorValor = 360 / numValores;
+
+            for (let i = 0; i < numValores; i++) {
+                const anguloInicio = anguloInicial + i * anguloPorValor * Math.PI / 180;
+                const anguloFim = anguloInicial + (i + 1) * anguloPorValor * Math.PI / 180;
+
+                ctx.beginPath();
+                ctx.moveTo(centroX, centroY);
+                ctx.arc(centroX, centroY, raio, anguloInicio, anguloFim);
+                ctx.closePath();
+
+                ctx.fillStyle = cores[i];
+                ctx.fill();
+
+                ctx.strokeStyle = '#121212';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centroX, centroY);
+                ctx.rotate(anguloInicio + anguloPorValor / 2 * Math.PI / 180);
+                ctx.fillStyle = '#121212';
+                ctx.font = '14px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                const texto = valores[i].toString();
+                const x = raio * 0.7;
+                const y = 0;
+
+                const maxWidth = raio * 0.6;
+                let fontSize = 14;
+                do {
+                    ctx.font = `${fontSize}px "Press Start 2P"`;
+                    const textWidth = ctx.measureText(texto).width;
+                    if (textWidth <= maxWidth || fontSize <= 8) break;
+                    fontSize -= 1;
+                } while (true);
+
+                ctx.fillText(texto, x, y);
+                ctx.restore();
+            }
+        }
+
+        function girarRoleta() {
+            if (girando) return;
+            girando = true;
+            resultadoDiv.textContent = '';
+            codigoDiv.textContent = '';
+            mensagemDiv.style.display = 'none';
+            girarBotao.disabled = true;
+
+            velocidadeInicial = 720 + Math.random() * 720;
+            const desaceleracao = velocidadeInicial / (tempoLimite * 1000);
+            let anguloFinal = anguloInicial;
+            let tempo = 0;
+            const intervalo = 10;
+
+            intervaloId = setInterval(() => {
+                tempo += intervalo;
+                const anguloRotacao = velocidadeInicial * tempo / 1000 - 0.5 * desaceleracao * Math.pow(tempo / 1000, 2);
+                anguloInicial = anguloFinal + anguloRotacao * Math.PI / 180;
+                desenharRoleta();
+
+                if (tempo >= tempoLimite * 1000) {
+                    clearInterval(intervaloId);
+                    girando = false;
+                    girarBotao.disabled = false;
+                    determinarResultado();
+                }
+                velocidadeInicial = Math.max(0, velocidadeInicial - desaceleracao * intervalo / 1000);
+            }, intervalo);
+
+            playSound('spin');
+        }
+
+        function determinarResultado() {
+            const numValores = valores.length;
+            const anguloPorValor = 360 / numValores;
+            let anguloParada = anguloInicial * 180 / Math.PI % 360;
+             if (anguloParada < 0) {
+                anguloParada += 360;
+            }
+
+            let valorSelecionado = Math.floor((360 - anguloParada) / anguloPorValor) % numValores;
+            if (valorSelecionado < 0) {
+                valorSelecionado += numValores;
+            }
+            const resultado = valores[valorSelecionado];
+            resultadoDiv.textContent = `Você ganhou ${resultado} Robux!`;
+            const codigoResgate = gerarCodigoResgate();
+            codigoDiv.textContent = `Código: ${codigoResgate}`;
+            codigoDiv.style.display = 'block';
+            mensagemDiv.style.display = 'block';
+            playSound('ding');
+        }
+
+        function gerarCodigoResgate() {
+            const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let codigo = '';
+            for (let i = 0; i < 12; i++) {
+                codigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+            }
+            return codigo;
+        }
+
+        async function playSound(type) {
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+            let buffer;
+            switch (type) {
+                case 'spin':
+                    buffer = await loadSound('https://unpkg.com/@tonejs/tone/build/Tone.min.js', 'spin.mp3');
+                    break;
+                case 'ding':
+                    buffer = await loadSound('https://unpkg.com/@tonejs/tone/build/Tone.min.js', 'ding.mp3');
+                    break;
+                case 'buzzer':
+                    buffer = await loadSound('https://unpkg.com/@tonejs/tone/build/Tone.min.js', 'buzzer.mp3');
+                    break;
+                default:
+                    return;
+            }
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+            source.start();
+        }
+
+        async function loadSound(baseUrl, filename) {
+            const response = await fetch(`${baseUrl}`);
+            const arrayBuffer = await response.arrayBuffer();
+            return await audioContext.decodeAudioData(arrayBuffer);
+        }
+
+        girarBotao.addEventListener('click', girarRoleta);
+        window.addEventListener('resize', () => {
+            largura = Math.min(500, window.innerWidth * 0.8);
+            canvas.width = largura;
+            canvas.height = largura;
+            desenharRoleta();
+        });
+
+        desenharRoleta();
+    </script>
+</body>
+</html>
+
